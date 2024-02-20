@@ -1,13 +1,18 @@
 package edu.uw.ischool.haeun.awty
 
+import android.Manifest
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
+import android.telephony.SmsManager
 import android.widget.Button
 import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var editTextMessage: EditText
@@ -27,6 +32,11 @@ class MainActivity : AppCompatActivity() {
         editTextInterval = findViewById(R.id.editTextInterval)
         buttonStartStop = findViewById(R.id.buttonStartStop)
 
+        // Check for SMS permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.SEND_SMS), 1)
+        }
+
         buttonStartStop.setOnClickListener {
             if (!isNagging) {
                 startNagging()
@@ -35,6 +45,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     private fun startNagging() {
         val message = editTextMessage.text.toString()
         val phoneNumber = formatPhoneNumber(editTextPhoneNumber.text.toString().trim())
@@ -56,12 +67,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         runnable = Runnable {
-            showCustomToast(phoneNumber, message)
+            sendSMS(phoneNumber, "$message\nAudio: [Audio Link]\nVideo: [Video Link]")
             handler.postDelayed(runnable, interval.toLong())
         }
         handler.post(runnable)
         isNagging = true
         buttonStartStop.text = getString(R.string.stop)
+    }
+
+    private fun sendSMS(phoneNumber: String, message: String) {
+        val smsManager = SmsManager.getDefault()
+        val sentPI: PendingIntent = PendingIntent.getBroadcast(this, 0, Intent("SMS_SENT"), PendingIntent.FLAG_UPDATE_CURRENT)
+
+        try {
+            smsManager.sendTextMessage(phoneNumber, null, message, sentPI, null)
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+            // Handle exceptions like invalid number format
+        }
     }
 
     private fun stopNagging() {
@@ -76,23 +99,6 @@ class MainActivity : AppCompatActivity() {
             "${phoneDigits.substring(0, 3)}-${phoneDigits.substring(3, 6)}-${phoneDigits.substring(6)}"
         } else {
             "INVALID"
-        }
-    }
-
-    private fun showCustomToast(phoneNumber: String, message: String) {
-        val inflater = layoutInflater
-        val layout = inflater.inflate(R.layout.custom_toast, findViewById(R.id.custom_toast_container))
-
-        val textCaption: TextView = layout.findViewById(R.id.text_caption)
-        val textMessageBody: TextView = layout.findViewById(R.id.text_message_body)
-
-        textCaption.text = "Texting $phoneNumber"
-        textMessageBody.text = message
-
-        with (Toast(applicationContext)) {
-            duration = Toast.LENGTH_LONG
-            view = layout
-            show()
         }
     }
 }
